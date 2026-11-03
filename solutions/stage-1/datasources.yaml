@@ -1,0 +1,36 @@
+# Solution for README 1.12: a second Prometheus data source with its own uid.
+# Copy over grafana/provisioning/datasources/datasources.yaml and restart Grafana.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+      prometheusType: Prometheus
+
+  # Same server, different name and uid. In production this would be a
+  # long-term store such as Mimir; dashboards switch to it through the
+  # $datasource variable without any JSON change.
+  - name: Prometheus (long-term)
+    type: prometheus
+    uid: prometheus-longterm
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    editable: false
+    jsonData:
+      timeInterval: 15s
+      httpMethod: POST
+      prometheusType: Prometheus
+
+  - name: TestData
+    type: grafana-testdata-datasource
+    uid: testdata
+    editable: false

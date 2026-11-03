@@ -1,0 +1,47 @@
+# Local lab: Grafana (built from this repo's Dockerfile) plus Prometheus.
+#   cp .env.example .env        # then pick a password
+#   docker compose up --build
+#   open http://localhost:3000  (anonymous Viewer, or admin + your password)
+name: learn-grafana
+
+services:
+  grafana:
+    build: .
+    image: learn-grafana:local
+    environment:
+      # GF_<SECTION>_<KEY> overrides grafana.ini; the password never lives in Git.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount the JSON over the copy baked into the image, so edits appear
+      # within updateIntervalSeconds (30s) without rebuilding.
+      - ./grafana/dashboards:/etc/grafana/dashboards:ro
+      # SQLite database, plugins and sessions survive restarts.
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=2d
+      # POST /-/reload picks up rule edits without a restart.
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  grafana-data:
+  prometheus-data:

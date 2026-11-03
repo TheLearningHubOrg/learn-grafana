@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Must match EXPOSE in the Dockerfile and http_port in grafana/grafana.ini.
+  APP_PORT: "3000"
+  HEALTH_PATH: "/api/health"
+
+jobs:
+  test:
+    name: Lint scripts and markdown, validate dashboards and rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: ShellCheck every example script
+        run: |
+          shopt -s globstar nullglob
+          shellcheck -x --severity=warning examples/**/*.sh
+      - uses: DavidAnson/markdownlint-cli2-action@v20
+        with:
+          globs: |
+            **/*.md
+            !CHANGELOG.md
+      - uses: docker/setup-buildx-action@v3
+      # The validate stage runs examples/run-all.sh: dashboard lint (jq),
+      # provisioning checks (yq) and promtool check/test for the rules.
+      - name: Dashboard lint, provisioning checks, promtool unit tests
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: validate
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  docker:
+    name: Grafana image boots, provisions and queries Prometheus
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      GRAFANA_PASSWORD: ci-only-password
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          push: false
+          tags: guide-app:ci
+          cache-from: type=gha
+      - name: Start Prometheus and Grafana on one network
+        run: |
+          docker network create smoke
+          docker run -d --name prometheus --network smoke \
+            -v "$PWD/prometheus:/etc/prometheus:ro" prom/prometheus:v3.15.1
+          # The container name "grafana" is the scrape target in prometheus.yml.
+          docker run -d --name grafana --network smoke -p "${APP_PORT}:${APP_PORT}" \
+            -e GF_SECURITY_ADMIN_PASSWORD="$GRAFANA_PASSWORD" guide-app:ci
+      - name: Wait for the health endpoint
+        run: |
+          for _ in $(seq 1 40); do
+            if curl -fsS "http://localhost:${APP_PORT}${HEALTH_PATH}"; then exit 0; fi
+            sleep 2
+          done
+          docker logs grafana
+          exit 1
+      - name: Smoke test provisioning and a query through Grafana
+        run: GRAFANA_URL="http://localhost:${APP_PORT}" bash examples/live/smoke.sh
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker logs grafana 2>&1 | tail -n 200
+          docker logs prometheus 2>&1 | tail -n 50

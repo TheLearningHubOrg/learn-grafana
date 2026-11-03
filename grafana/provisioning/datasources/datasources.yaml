@@ -1,0 +1,24 @@
+# Data sources Grafana creates (or updates) on every start.
+# Dashboards reference data sources by uid, so the uids here are a contract:
+# change one and every panel that points at it breaks.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # Must equal global.scrape_interval in prometheus/prometheus.yml.
+      # Grafana uses it to compute $__rate_interval.
+      timeInterval: 15s
+      httpMethod: POST
+      prometheusType: Prometheus
+
+  - name: TestData
+    type: grafana-testdata-datasource
+    uid: testdata
+    editable: false

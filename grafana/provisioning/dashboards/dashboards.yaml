@@ -1,0 +1,17 @@
+# One file provider loads every dashboard under /etc/grafana/dashboards.
+# Each sub-directory becomes a Grafana folder (platform/, sandbox/).
+apiVersion: 1
+
+providers:
+  - name: learn-grafana
+    orgId: 1
+    type: file
+    # Removing a JSON file does not delete the dashboard from Grafana.
+    disableDeletion: true
+    # Git is the source of truth: UI edits cannot be saved over provisioned files.
+    allowUiUpdates: false
+    # Re-scan the directory so edits to mounted JSON show up without a restart.
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: true

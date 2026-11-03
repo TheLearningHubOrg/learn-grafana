@@ -1,0 +1,11 @@
+.git
+.github
+**/node_modules
+**/.lycheecache
+public
+solutions
+*.md
+.env
+.env.*
+Dockerfile
+.dockerignore

@@ -1,0 +1,19 @@
+# Prometheus for the starter stack. It scrapes itself and Grafana, so the
+# dashboards have real HTTP traffic to show without any extra application.
+global:
+  # Keep in sync with jsonData.timeInterval of the Prometheus data source.
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - rules/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: grafana
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["grafana:3000"]

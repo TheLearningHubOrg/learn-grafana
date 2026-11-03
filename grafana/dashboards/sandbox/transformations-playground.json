@@ -1,0 +1,227 @@
+{
+  "id": null,
+  "uid": "learn-grafana-transforms",
+  "title": "Transformations Playground",
+  "description": "Static TestData inputs for practising transformations, overrides and value mappings (README Stage 2).",
+  "tags": ["learn-grafana", "sandbox"],
+  "editable": true,
+  "graphTooltip": 0,
+  "timezone": "browser",
+  "refresh": "",
+  "schemaVersion": 41,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "links": [],
+  "annotations": { "list": [] },
+  "templating": {
+    "list": [
+      {
+        "name": "region",
+        "label": "Region",
+        "type": "custom",
+        "query": "eu-west,us-east",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": { "text": ["All"], "value": ["$__all"] },
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "table",
+      "title": "Raw service stats (CSV input)",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+          "scenarioId": "csv_content",
+          "csvContent": "service,region,requests,errors,p95_ms\ncheckout,eu-west,1200,12,240\ncheckout,us-east,1800,9,180\nsearch,eu-west,5400,3,95\nsearch,us-east,6100,61,130\npayments,eu-west,800,16,410\npayments,us-east,950,2,380"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "filterByValue",
+          "options": {
+            "type": "include",
+            "match": "any",
+            "filters": [
+              { "fieldName": "region", "config": { "id": "regex", "options": { "value": "${region:regex}" } } }
+            ]
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "p95_ms" }, "properties": [{ "id": "unit", "value": "ms" }] }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm" }
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Grouped by service, with computed error ratio",
+      "description": "groupBy first, then calculateField, so the ratio is computed from the summed counts.",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+          "scenarioId": "csv_content",
+          "csvContent": "service,region,requests,errors,p95_ms\ncheckout,eu-west,1200,12,240\ncheckout,us-east,1800,9,180\nsearch,eu-west,5400,3,95\nsearch,us-east,6100,61,130\npayments,eu-west,800,16,410\npayments,us-east,950,2,380"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "service": { "operation": "groupby", "aggregations": [] },
+              "requests": { "operation": "aggregate", "aggregations": ["sum"] },
+              "errors": { "operation": "aggregate", "aggregations": ["sum"] },
+              "p95_ms": { "operation": "aggregate", "aggregations": ["max"] }
+            }
+          }
+        },
+        {
+          "id": "calculateField",
+          "options": {
+            "mode": "binary",
+            "alias": "error ratio",
+            "binary": { "left": "errors (sum)", "operator": "/", "right": "requests (sum)" },
+            "replaceFields": false
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": { "sort": [{ "field": "error ratio", "desc": true }] }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "error ratio" },
+            "properties": [
+              { "id": "unit", "value": "percentunit" },
+              { "id": "decimals", "value": 2 },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "orange", "value": 0.005 },
+                    { "color": "red", "value": 0.01 }
+                  ]
+                }
+              },
+              { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+            ]
+          },
+          { "matcher": { "id": "byName", "options": "p95_ms (max)" }, "properties": [{ "id": "unit", "value": "ms" }] }
+        ]
+      },
+      "options": { "showHeader": true, "cellHeight": "sm" }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Random walks with overrides",
+      "description": "Series matching /canary/ are drawn dashed on the right axis via a regex override.",
+      "gridPos": { "x": 0, "y": 8, "w": 16, "h": 9 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+          "scenarioId": "random_walk",
+          "seriesCount": 2,
+          "alias": "stable-$seriesIndex",
+          "min": 0,
+          "startValue": 50
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+          "scenarioId": "random_walk",
+          "seriesCount": 1,
+          "alias": "canary",
+          "min": 0,
+          "startValue": 5
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "palette-classic" },
+          "custom": { "drawStyle": "line", "lineWidth": 1, "fillOpacity": 0, "showPoints": "never" }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": "/canary/" },
+            "properties": [
+              { "id": "custom.lineStyle", "value": { "fill": "dash", "dash": [10, 10] } },
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom", "calcs": [] },
+        "tooltip": { "mode": "multi", "sort": "none" }
+      }
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Build health (value mapping)",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 9 },
+      "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "grafana-testdata-datasource", "uid": "testdata" },
+          "scenarioId": "csv_metric_values",
+          "stringInput": "1,1,0,2,1",
+          "alias": "pipeline"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": { "text": "FAILING", "color": "red", "index": 0 },
+                "1": { "text": "PASSING", "color": "green", "index": 1 },
+                "2": { "text": "FLAKY", "color": "orange", "index": 2 }
+              }
+            }
+          ],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value",
+        "justifyMode": "center",
+        "orientation": "auto"
+      }
+    }
+  ]
+}

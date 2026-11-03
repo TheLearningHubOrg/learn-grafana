@@ -1,0 +1,33 @@
+{
+  "id": 17,
+  "uid": "this uid has spaces and is far too long to be accepted",
+  "title": "Broken on purpose",
+  "schemaVersion": 27,
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Hard-coded window, no unit",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "expr": "sum(rate(http_requests_total[1m]))"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    },
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Duplicate id, overflowing, unknown data source",
+      "gridPos": { "x": 16, "y": 0, "w": 12, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "P1809F7CD0C75ACF3" },
+      "targets": [{ "refId": "A", "expr": "up" }],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] }
+    }
+  ]
+}

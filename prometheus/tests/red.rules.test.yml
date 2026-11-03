@@ -1,0 +1,58 @@
+# Unit tests for prometheus/rules/red.rules.yml.
+#   promtool test rules prometheus/tests/red.rules.test.yml
+# Counters grow by a fixed amount every 15s, so the expected rates are round numbers:
+#   +30 per 15s = 2 req/s, +7.5 per 15s = 0.5 req/s, +15 per 15s = 1 req/s.
+rule_files:
+  - ../rules/red.rules.yml
+
+evaluation_interval: 15s
+
+# rate() extrapolation and histogram interpolation leave float noise such as
+# 2.4999999999999996; fuzzy comparison accepts it without hiding real errors.
+fuzzy_compare: true
+
+tests:
+  - interval: 15s
+    input_series:
+      # Prometheus: 2 req/s succeed, 0.5 req/s fail with 503.
+      - series: 'prometheus_http_requests_total{job="prometheus",instance="localhost:9090",handler="/api/v1/query",code="200"}'
+        values: '0+30x60'
+      - series: 'prometheus_http_requests_total{job="prometheus",instance="localhost:9090",handler="/api/v1/query",code="503"}'
+        values: '0+7.5x60'
+      # Grafana: 1 req/s, never fails. 80% finish under 100ms, all under 500ms.
+      - series: 'grafana_http_request_duration_seconds_count{job="grafana",instance="grafana:3000",handler="/api/ds/query",method="POST",status_code="200"}'
+        values: '0+15x60'
+      - series: 'grafana_http_request_duration_seconds_bucket{job="grafana",instance="grafana:3000",handler="/api/ds/query",method="POST",status_code="200",le="0.1"}'
+        values: '0+12x60'
+      - series: 'grafana_http_request_duration_seconds_bucket{job="grafana",instance="grafana:3000",handler="/api/ds/query",method="POST",status_code="200",le="0.5"}'
+        values: '0+15x60'
+      - series: 'grafana_http_request_duration_seconds_bucket{job="grafana",instance="grafana:3000",handler="/api/ds/query",method="POST",status_code="200",le="+Inf"}'
+        values: '0+15x60'
+
+    promql_expr_test:
+      - expr: job:http_requests:rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'job:http_requests:rate5m{job="prometheus"}'
+            value: 2.5
+          - labels: 'job:http_requests:rate5m{job="grafana"}'
+            value: 1
+
+      # 0.5 / 2.5 for Prometheus; Grafana has no 5xx series and falls back to 0.
+      - expr: job:http_errors:ratio_rate5m
+        eval_time: 10m
+        exp_samples:
+          - labels: 'job:http_errors:ratio_rate5m{job="prometheus"}'
+            value: 0.2
+          - labels: 'job:http_errors:ratio_rate5m{job="grafana"}'
+            value: 0
+
+      # Rank 0.95 falls in the (0.1, 0.5] bucket, three quarters of the way in:
+      # 0.1 + (0.5 - 0.1) * (0.95 - 0.8) / (1.0 - 0.8) = 0.4
+      # The interpolation error here is larger than fuzzy_compare allows, so
+      # round to the millisecond. round() drops the metric name from the result.
+      - expr: round(job:http_request_duration_seconds:p95_5m{job="grafana"}, 0.001)
+        eval_time: 10m
+        exp_samples:
+          - labels: '{job="grafana"}'
+            value: 0.4

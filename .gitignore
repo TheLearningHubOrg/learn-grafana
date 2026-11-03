@@ -1,0 +1,26 @@
+# Docs-only guides
+node_modules/
+.lycheecache
+examples/out/
+examples/**/tmp/
+
+# Editors and OS
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+.DS_Store
+Thumbs.db
+
+# Env files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Grafana and Prometheus local data (if you swap the named volumes for bind mounts)
+data/
+grafana-data/
+prometheus-data/
+*.db
+*.log
